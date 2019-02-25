@@ -1,12 +1,8 @@
-rm(list=ls())
+
 
 ###########################Scraper###########################
-library(gtrendsR)
-setwd('/Users/patrick/Desktop/MAE Lab/Projects/Google Trends')
-
-queries<-as.vector(read.csv("us-inflation_rate.csv", header=F)$V1)
-
 get.trends<-function(queries=NA, geo="US", time="all", path=getwd()){
+  library(gtrendsR)
   for(i in 1:length(queries)){
     keyword=queries[i]
     data=gtrends(keyword=keyword, geo=geo, time=time)$interest_over_time[,1:4]
@@ -20,13 +16,21 @@ get.trends<-function(queries=NA, geo="US", time="all", path=getwd()){
   }
 }
 
+#Function call: get.trends(queries=, geo="US", time="all", path=)
 
-path='/Users/patrick/Desktop/MAE Lab/Projects/Google Trends/Inflation_2'
-get.trends(queries, path=path)
+#This function automatically stores Google Trends time series in 
+#separate csv files in a given directory. Note that this function
+#will automatically set the names of the time series to the query
+#terms.
+
+#queries should be a vector of terms to get google trends for.
+
+#path indicates where the csv files should be stored. Default is
+#the current working directory.
 
 
 
-###########################Merge Data###########################
+###########################Merge Data (Mac)###########################
 
 load.data<-function(pattern=NA, path=getwd(), merge=FALSE){
   library(purrr)
@@ -61,16 +65,12 @@ load.data<-function(pattern=NA, path=getwd(), merge=FALSE){
   }
 }
 
-df<-load.data(path=path, merge=T)
-#df<-load.data(path=path, merge=F)
-#data<-reduce(df, merge)
-write.csv(x=df, file="/Users/patrick/Desktop/MAE Lab/Projects/Google Trends/us_inflation_panel.csv", row.names=F)
+#Function call: load.data(path=, merge=F)
 
-#multmerge = function(mypath){
-  #filenames=list.files(path=mypath, full.names=TRUE)
-  #datalist = lapply(filenames, function(x){read.csv(file=x,header=T)[,2:3]})
-  #Reduce(function(x,y) {merge(x,y)}, datalist)
-#}
+#This function automatically loads all the csv files in a directory.
+#If a pattern is specified, only files with names that match the pattern
+#will be loaded. If merge is set to be FALSE, the data frames will be 
+#stored in a list. If merge is set to be TRUE, the data frames will 
+#be merged. Make sure that there is one and only one column in the dataframes
+#that have a common name before setting merge=T.
 
-#df<-multmerge(path)
-#write.csv(x=df, file="inflation_panel.csv")
