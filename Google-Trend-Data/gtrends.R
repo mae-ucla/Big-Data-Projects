@@ -1,5 +1,3 @@
-
-
 ###########################Scraper###########################
 get.trends<-function(queries=NA, geo="US", time="all", path=getwd()){
   library(gtrendsR)
@@ -30,16 +28,14 @@ get.trends<-function(queries=NA, geo="US", time="all", path=getwd()){
 
 
 
-###########################Merge Data (Mac)###########################
+###########################Merge Data###########################
 
 load.data<-function(pattern=NA, path=getwd(), merge=FALSE){
-  library(purrr)
   setwd(path)
+  list<-list.files(path)
   if(is.na(pattern)){
-    list<-system("ls", intern=T)
     list<-paste(path, "/", list, sep="")
   }else{
-    list<-system("ls", intern=T)
     list<-list[grep(pattern=pattern, x=list)]
     list<-paste(path, "/", list, sep="")
   }
@@ -73,4 +69,3 @@ load.data<-function(pattern=NA, path=getwd(), merge=FALSE){
 #stored in a list. If merge is set to be TRUE, the data frames will 
 #be merged. Make sure that there is one and only one column in the dataframes
 #that have a common name before setting merge=T.
-
