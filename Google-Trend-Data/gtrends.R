@@ -1,5 +1,5 @@
 ###########################Scraper###########################
-get.trends<-function(queries=NA, geo="US", time="all", path=getwd()){
+get.trends<-function(queries=NULL, geo="US", time="all", path=getwd()){
   library(gtrendsR)
   for(i in 1:length(queries)){
     keyword=queries[i]
@@ -18,10 +18,10 @@ get.trends<-function(queries=NA, geo="US", time="all", path=getwd()){
 
 ###########################Merge Data###########################
 
-load.data<-function(pattern=NA, path=getwd(), merge=FALSE){
+load.data<-function(pattern=NULL, path=getwd(), merge=FALSE){
   setwd(path)
   list<-list.files(path)
-  if(is.na(pattern)){
+  if(is.null(pattern)){
     list<-paste(path, "/", list, sep="")
   }else{
     list<-list[grep(pattern=pattern, x=list)]
