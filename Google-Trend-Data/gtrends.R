@@ -4,7 +4,7 @@ get.trends<-function(queries=NA, geo="US", time="all", path=getwd()){
   for(i in 1:length(queries)){
     keyword=queries[i]
     data=gtrends(keyword=keyword, geo=geo, time=time)$interest_over_time[,1:4]
-    if(length(data$hits)<100 | class(data$hit)!="integer"){
+    if(length(data$hits)==0){
       next
     }
     colnames(data)[2]<-data[2,3]
@@ -67,5 +67,5 @@ load.data<-function(pattern=NA, path=getwd(), merge=FALSE){
 #If a pattern is specified, only files with names that match the pattern
 #will be loaded. If merge is set to be FALSE, the data frames will be 
 #stored in a list. If merge is set to be TRUE, the data frames will 
-#be merged. Make sure that there is one and only one column in the dataframes
+#be merged. Make sure that there is one and only one column in the data frames
 #that have a common name before setting merge=T.
