@@ -18,5 +18,5 @@ The function `load.data()` automatically loads .csv files, either under the curr
 ```
 dir="~/Documents/Google_Trends"              #The directory under which the files are stored
 data<-load.data(path=dir, merge=T)           #Load the files and merge the data into a single data frame
-write.csv(data, "Google_trends.csv")         #Write the data frame into a csv file.
+write.csv(data, "Google_trends.csv")         #Write the data frame into a csv file
 ```
