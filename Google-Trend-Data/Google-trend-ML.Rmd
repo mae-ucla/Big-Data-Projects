@@ -65,8 +65,9 @@ us_inf_all<-read.zoo(us_inf_all, index = c("Date"), format = "%m/%d/%y")
 
 ## take diff and log of original dataset 
 for (i in 2:ncol(us_inf_all)) {
-us_inf_all[,i] = log(us_inf_all[,i])
+us_inf_all[,i] = c(0,diff(log(us_inf_all[,i]),1))
 }                         
+
 us_inf_all[,1] = c(0,diff(us_inf_all[,1],1))
 
 us_inf_all$inf_lag = lag(us_inf_all$inf,k = -1)
@@ -192,11 +193,14 @@ df <- rbind(df, nonzerocoefficients)
 }
 ```
 
-Adaptive Elastic Net Model +  Pre -SIS procedure 
+1. Adaptive Elastic Net Model +  Pre -SIS procedure  (Rolling Window)
 
 ```{r}
 library(glm2)
-library(SISadaElasticNet) # local R package https://github.com/zikiki/SISadaElasticNet
+library('SISadaElasticNet',lib.loc = "SISadaElasticNet")
+library( msaenet)
+        
+ # local R package https://github.com/zikiki/SISadaElasticNet
 Data = us_inf_all
 
 X = matrix(Data[,-1 ],nrow = dim(Data[,-1 ])[1])
@@ -213,7 +217,7 @@ trues_anet<-c()
 errors <-c()
 for (i in 1:n_windows) {
 
-Xsis<-SIS.gaussian(X[i:(w_size + i - 1),], matrix(Y[i:(w_size + i - 1),1]),120)
+Xsis<-SIS.gaussian(X[i:(w_size + i - 1),], matrix(Y[i:(w_size + i - 1),1]),48)
 aenet.fit = aenet(Xsis$Xs, matrix(Y[i:(w_size + i - 1),1]),
 alphas = seq(0.2, 0.8, 0.02), seed = 10)
 coef(aenet.fit) ## return the regressors' coefficients (the order of the regressors are ranked from the SIS.gaussian function)
@@ -222,8 +226,8 @@ nonzero_index = which(!coef(aenet.fit) == 0) ## return the index of the regresso
 # Build an AR model that includes these regressors as well as the lagged term
 if (length(nonzero_index) !=0){
   nonzero_index <-as.vector(nonzero_index)
-  xregs <- X[i:(w_size + i - 1),Xsis$Index[1:120][nonzero_index]]
-  newxregs <-t(matrix(X[w_size + i,Xsis$Index[1:120][nonzero_index]]))
+  xregs <- X[i:(w_size + i - 1),Xsis$Index[1:48][nonzero_index]]
+  newxregs <-t(matrix(X[w_size + i,Xsis$Index[1:48][nonzero_index]]))
   
   Data_uni = ts(us_inf_all[,'inf'],start=c(2004, 3), end=c(2019, 1), frequency=12)
   AR_net <-Arima(Data_uni[i:(w_size + i - 1)], order=c(1,0,0),xreg =xregs)
@@ -257,6 +261,77 @@ errors <-c(errors,e)
 }
 
 ```
+
+
+2. Adaptive Elastic Net Model +  Pre -SIS procedure  (Expanding Window)
+
+```{r}
+library(glm2)
+library('SISadaElasticNet',lib.loc = "SISadaElasticNet")
+library( msaenet)
+        
+ # local R package https://github.com/zikiki/SISadaElasticNet
+Data = us_inf_all
+
+X = matrix(Data[,-1 ],nrow = dim(Data[,-1 ])[1])
+Y = matrix(Data[,1],nrow = dim(Data[,-1 ])[1])
+
+j= 48
+w_size = j
+n_windows = nrow(us_inf_all) - j 
+# initialize the coeff_prior and # of variable inclusiong for model updating... 
+predicts_arnet<-c()
+trues_arnet<-c()
+predicts_anet<-c()
+trues_anet<-c()
+errors <-c()
+for (i in 1:n_windows) {
+
+Xsis<-SIS.gaussian(X[1:(w_size + i - 1),], matrix(Y[1:(w_size + i - 1),1]),48)
+aenet.fit = aenet(Xsis$Xs, matrix(Y[1:(w_size + i - 1),1]),
+alphas = seq(0.2, 0.8, 0.02), seed = 10)
+coef(aenet.fit) ## return the regressors' coefficients (the order of the regressors are ranked from the SIS.gaussian function)
+nonzero_index = which(!coef(aenet.fit) == 0) ## return the index of the regressors in the ordered list
+
+# Build an AR model that includes these regressors as well as the lagged term
+if (length(nonzero_index) !=0){
+  nonzero_index <-as.vector(nonzero_index)
+  xregs <- X[1:(w_size + i - 1),Xsis$Index[1:48][nonzero_index]]
+  newxregs <-t(matrix(X[w_size + i,Xsis$Index[1:48][nonzero_index]]))
+  
+  Data_uni = ts(us_inf_all[,'inf'],start=c(2004, 3), end=c(2019, 1), frequency=12)
+  AR_net <-Arima(Data_uni[1:(w_size + i - 1)], order=c(1,0,0),xreg =xregs)
+  AR_net_predict <- forecast(AR_net, xreg = newxregs , h =1)
+  y_real =Data_uni[w_size + i]
+  
+  predicts_arnet <- c(predicts_arnet, AR_net_predict$mean)
+  trues_arnet <- c(trues_arnet, y_real)
+  e<-y_real -  AR_net_predict$mean
+} else {
+  Data_uni = ts(us_inf_all[,'inf'],start=c(2004, 3), end=c(2019, 1), frequency=12)
+  AR_net <-Arima(Data_uni[1:(w_size + i - 1)], order=c(1,0,0))
+  AR_net_predict <- forecast(AR_net, h =1)
+  y_real =Data_uni[w_size + i]
+  
+  predicts_arnet <- c(predicts_arnet, AR_net_predict$mean)
+  trues_arnet <- c(trues_arnet, y_real)
+  e<-y_real -  AR_net_predict$mean
+}
+
+
+
+## Only with adaptive elastic net model
+#y_predict = predict(aenet.fit, t(matrix(X[w_size + i,Xsis$Index[1:120]])))
+#y_real = matrix(Y[w_size + i])
+
+#predicts_anet <- c(predicts_anet,y_predict)
+#trues_anet <-c(trues_anet, y_real)
+#ee<-y_real - y_predict
+errors <-c(errors,e)
+}
+
+```
+
 
 
 Benchmark model: AR model 
@@ -309,26 +384,25 @@ df <- melt(df ,  id.vars = 'date')
 ggplot(data = df) + geom_line(aes(x = date, y = value, linetype = variable, color = variable))
 ```
 
-compare LASSO and AR
+Point Forecast Performance: compare Adaptive Elastic Net and AR
 ```{r}
 
-
-  mspe = trues - predicts
-
-  mspe_L = mean(na.omit(mspe)^2)
+  mspe_aenet = trues_arnet - predicts_arnet
+  mspe_ar = trues_ar - predicts_ar
+  mspe_AENET = mean(na.omit(mspe_aenet)^2)
   mspe_AR = mean(na.omit(mspe_ar)^2)
-  mspe_ratio = mspe_L/mspe_AR
+  mspe_ratio = mspe_AENET/mspe_AR
 
-  dm_re = dm.test(mspe_ar, mspe, "greater",h = 1)
+  dm_re = dm.test(mspe_ar,mspe_aenet, "greater",h = 1)
   
 ```
 
 compare Lasso and RW
 
 ```{r}
-  mspe_random = trues - tail(Data[,'inf_lag'], n=n_windows)
+  mspe_random = trues_arnet - tail(Data[,'inf_lag'], n=n_windows)
 
-  mspe = trues - predicts
+  mspe = trues_arnet - predicts_arnet
 
   mspe_L = mean(na.omit(mspe)^2)
   mspe_RW = mean(na.omit(mspe_random)^2)
@@ -340,4 +414,111 @@ compare Lasso and RW
   
 ```
 
+calculate the success ratio
+```{r}
+forecasts <-data.frame(predicts_arnet, trues_arnet)
+colnames(forecasts) <-c('Google_Forecasts','Realized')
 
+forecasts$success <- ifelse(sign(forecasts$Google_Forecasts) == sign(forecasts$Realized), 1,0)
+success_ratio = sum(forecasts$success)/nrow(forecasts)
+forecasts$forecasted_direction <- sign(forecasts$Google_Forecasts)
+forecasts$true_direction <- sign(forecasts$Realized)
+
+forecasts$forecasted_direction <- ifelse(sign(forecasts$forecasted_direction) == 1, 1,0)
+
+
+forecasts$true_direction <- ifelse(sign(forecasts$true_direction) == 1, 1,0)
+
+```
+
+Calculate R-squared 
+
+```{r}
+
+R_sq <- function(forecasts, real){
+      R_sq <- 1 -(sum((real-forecasts)^2))/(sum((real-mean(real))^2))
+      return(R_sq)
+  }
+
+PE_lasso <- R_sq(forecasts$Google_Forecasts, forecasts$Realized)
+```
+
+
+
+
+```{r}
+forecasts$newey_west = forecasts$forecasted_direction * forecasts$Realized 
+```
+
+
+construct the autocovariance of Newey-LRV
+```{r}
+
+# autocovariance <-  as.numeric(NeweyWest(lm(forecasts$newey_west[1:110] ~ 1), adjust = TRUE))
+
+nw <- function(y,qn){
+  #input: y is a T*k vector and qn is the truncation lag
+  #output: the newey west HAC covariance estimator
+  #Formulas are from Hayashi
+  T <- length(y)
+  ybar <- rep(1,T) * ((sum(y))/T)
+  dy <- y-ybar
+  G0 <- t(dy) %*% dy/T
+  for (j in 1:qn){
+    gamma <- t(dy[(j+1):T]) %*% dy[1:T-j]/(T-1)
+    G0 <- G0+(gamma+t(gamma))*(1-abs(j/qn))
+  }
+  return(as.numeric(G0))
+}
+
+
+N  = length(forecasts$newey_west-1)
+test_statistics<- sqrt(N)*(mean(forecasts$newey_west))/sqrt(nw(y = forecasts$newey_west, qn = 1))
+
+
+Directional_NW <- function(W){
+  
+  nw <- function(y,qn){
+    #input: y is a T*k vector and qn is the truncation lag
+    #output: the newey west HAC covariance estimator
+    #Formulas are from Hayashi
+    T <- length(y)
+    ybar <- rep(1,T) * ((sum(y))/T)
+    dy <- y-ybar
+    G0 <- t(dy) %*% dy/T
+    for (j in 1:qn){
+      gamma <- t(dy[(j+1):T]) %*% dy[1:T-j]/(T-1)
+      G0 <- G0+(gamma+t(gamma))*(1-abs(j/qn))
+    }
+    return(as.numeric(G0))
+  }
+  
+  P <- length(W)
+  varfroll.adj <- nw(W,1)
+  CW <- sqrt(P)*(mean(W))/sqrt(varfroll.adj)
+  pv <- 1-pnorm(CW,0,1)
+  results=list(test=0,pvalue=0)
+  results$test <- CW
+  results$pvalue <- pv
+  return(results)
+}
+
+```
+
+```{r}
+success_ratio
+test_statistics
+```
+
+
+
+Form the forecast for ER
+
+```{r}
+In_sample <- Data$unem[1:48]
+length(In_sample)
+In_sample <-as.data.frame(In_sample)
+uk_unem_reg <-rbind(as.matrix(In_sample), predicts)
+path = file.path(data_dir, "uk_unem_reg.csv")
+write.csv(uk_unem_reg, file = path)
+```
